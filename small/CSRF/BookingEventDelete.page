@@ -1,0 +1,10 @@
+<apex:page standardController="BookingEvent__c" extensions="BookingEventDeleteExt" cache="false" action="{!deleteEvent}" standardStylesheets="true">
+	<div style="margin-left:-20px;">
+		<apex:pageMessages />
+	</div>
+	<div>
+		<a href="{!retBackUrl}" style="text-decoration: none; color: #015ba7;">
+			«&nbsp;Back
+		</a>
+	</div>
+</apex:page>

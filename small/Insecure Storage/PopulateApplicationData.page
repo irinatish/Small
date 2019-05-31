@@ -1,0 +1,23 @@
+<apex:page controller="PopulateApplicationData"> 
+    <apex:sectionHeader title="{!$Label.PopulateApplicationDataTitle}" id="theSection" />
+    <apex:form > 
+        <apex:pageBlock >
+            <apex:pageMessages />
+            <div id="description">
+            <br />
+            {!$Label.PopulateApplicationDataPageDescription} 
+            <br />  <br />
+            </div> 
+                      
+            <apex:commandButton value="OK" action="{!populateData}" onclick="return confirm(' {!$Label.PopulateApplicationDataPageConfirm} ');" />&nbsp;&nbsp;&nbsp;		                     
+            <apex:image value="/img/msg_icons/confirm16.png" rendered="{!!ISBLANK(customSettingSuccessMessage)}" />&nbsp;&nbsp;
+            <apex:outputText value="{!customSettingSuccessMessage}" /> 
+            
+            <!--  
+            <apex:pageBlockSection title="Sets of data to populate" columns="1">               
+            </apex:pageBlockSection>
+            -->
+        </apex:pageBlock>
+    </apex:form>    
+        
+</apex:page>

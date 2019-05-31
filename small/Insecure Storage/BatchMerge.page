@@ -1,0 +1,401 @@
+<apex:page Controller="MergeBatchCls" extensions="BookingTaxCalculationsHelperExt" standardStylesheets="true" sidebar="true" action="{!initDoc}" id="thePage">
+    <apex:sectionHeader title="{!$Label.ftczl__mergecreatebatchmergedocumentforbooking}" rendered="{!fromObject}" help="{!$Label.ftczl__nibasehelpurl}#cshid=batch_merge_new"/>
+    <apex:sectionHeader title="{!$Label.ftczl__mergecreatebatchmergedocument}" rendered="{!!fromObject}" help="{!$Label.ftczl__nibasehelpurl}#cshid=batch_merge_new"/>
+    <apex:outputPanel id="selectedBookingDocumentList">
+        <script>
+            var selectedBookingDocumentIds = '{!JSENCODE(selectedBookingDocumentIds)}';
+            var selectedDocumentTemplateId = '{!JSENCODE(selectedTemplateId)}';
+            var selectedTemplateType = '{!JSENCODE(selectedMergeType)}';
+        </script>
+    </apex:outputPanel>
+    <script>
+        function selectAll(obj) {
+            var inputElem = obj.parentElement.parentElement.parentElement.parentElement.parentElement.getElementsByTagName("input");
+            for(var i=0; i<inputElem.length; i++){
+                if(inputElem[i].id.indexOf("selectLine")!=-1 || inputElem[i].id.indexOf("selectGroup")!=-1){
+                    inputElem[i].checked = obj.checked;
+                }
+            }
+        }
+
+        function startMerge(){
+
+            window.scrollTo(0, 0);
+
+            document.getElementById('ProgressBar').style.display = "block";
+            setProgressBarStep(0);
+
+            var documentIds = JSON.parse(selectedBookingDocumentIds);
+            if (documentIds.length > 0) {
+                RegenerateBookingEventTaxes(documentIds, new Array());
+            } else {
+                generateDoc();
+            }
+
+        }
+
+        function setProgressBarStep(step, strText) {
+
+            for (var i = 0; i < 3; i++) {
+                if (document.getElementById('progressStr' + i)) {
+                    if (i === step) {
+                        document.getElementById('progressStr' + i).style.fontWeight = 'bold';
+                        document.getElementById('progressImg' + i).style.visibility = 'visible';
+                        document.getElementById('progressStrExtra' + i).innerText = (strText ? strText : '');
+                    } else {
+                        document.getElementById('progressStr' + i).style.fontWeight = 'normal';
+                        document.getElementById('progressImg' + i).style.visibility = 'hidden';
+                        document.getElementById('progressStrExtra' + i).innerText = '';
+                    }
+                }
+            }
+
+        }
+
+        function RegenerateBookingEventTaxes(documentIds, eventIds) {
+            {!remoteActionPrefix}BookingTaxCalculationsHelperExt.CreateBookingEventTaxesByDocumentIdList(documentIds, eventIds, function(result, event){
+                if (event.status) {
+                    if (result.length > 0) {
+                        RegenerateBookingEventTaxes(documentIds, result);
+                        setProgressBarStep(0, '(' + result.length + ' {!HTMLENCODE($Label.ftczl__merge_recalculatetaxesremaining)})' );
+                    } else {
+                        if (selectedTemplateType == 'BEO') {
+                            setProgressBarStep(1);
+                            ResolveEventItemBeoSection(documentIds, new Array());
+                        } else {
+                            setProgressBarStep(2);
+                            setTimeout(generateDoc(), 10);
+                        }
+                    }
+                } else {
+                    alert(event.message);
+                    document.getElementById('ProgressBar').style.display = "none";
+
+                }
+            }, { timeout: 120000 });
+        }
+
+        function ResolveEventItemBeoSection(documentIds, eventIds) {
+            {!remoteActionPrefix}MergeBatchCls.ResolveEventItemBeoSectionByEventIdList(selectedDocumentTemplateId, documentIds, eventIds, function(result, event){
+                if (event.status) {
+                    if (result.length > 0) {
+                        ResolveEventItemBeoSection(documentIds, result);
+                        setProgressBarStep(1, '(' + result.length + ' {!HTMLENCODE($Label.ftczl__merge_resolveeventitembeosectionremaining)})' );
+                    } else {
+                        setProgressBarStep(2);
+                        setTimeout(generateDoc(), 10);
+                    }
+                } else {
+                    alert(event.message);
+                    document.getElementById('ProgressBar').style.display = "none";
+
+                }
+            }, { timeout: 120000 });
+        }
+
+        function setFocusOnLoad() {}
+
+    </script>
+
+    <apex:pageMessages />
+
+    <apex:outputPanel rendered="{!notificationsPending}">
+        <apex:pageBlock title="{!$Label.ftczl__mergenotifications}">
+            <apex:pageBlockSection columns="1">
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputText value="{!notificationMessage}" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem rendered="{!!IsNull(BatchMergeObjectId)}">
+                    <apex:outputLink target="_blank" value="{!BatchMergeObjectURL}">{!BatchMergeObjectName}</apex:outputLink>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputPanel id="progressStatus">
+                        <div id="ProgressBar" style="display: none; border: 1px solid lightgray; padding-top: 5px; margin-top: 15px;">
+                            <table width="100%">
+                                <tr>
+                                    <td width="40%" height="18" align="right"><img id="progressImg0" style="visibility: hidden;" src="/img/loading.gif" /></td>
+                                    <td><span id="progressStr0" style="font-weight: normal;"><apex:outputText value="{!HTMLENCODE($Label.ftczl__merge_recalculatetaxes)}" /></span> <span id="progressStrExtra0" style="font-weight: bold;"></span></td>
+                                </tr>
+                                <apex:outputText rendered="{!selectedMergeType == 'BEO'}">
+                                    <tr>
+                                        <td width="40%" height="18" align="right"><img id="progressImg1" style="visibility: hidden;" src="/img/loading.gif" /></td>
+                                        <td><span id="progressStr1" style="font-weight: normal;"><apex:outputText value="{!HTMLENCODE($Label.ftczl__merge_resolveeventitembeosection)}" /></span> <span id="progressStrExtra1" style="font-weight: bold;"></span></td>
+                                    </tr>
+                                </apex:outputText>
+                                <tr>
+                                    <td height="18" align="right"><img id="progressImg2" style="visibility: hidden;" src="/img/loading.gif" /></td>
+                                    <td><span id="progressStr2" style="font-weight: normal;"><apex:outputText value="{!HTMLENCODE($Label.ftczl__merge_submittingmergejob)}" /></span> <span id="progressStrExtra2" style="font-weight: bold;"></span></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:outputPanel>
+
+    <apex:form style="width:100%;" id="typeform">
+        <apex:pageBlock title="{!$Label.ftczl__choosemergetype}" id="pageFormBlockTop">
+            <apex:pageBlockSection columns="2" id="pageFormSection">
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.ftczl__mergetype}" for="MergeType" />
+                    <apex:selectList size="1" value="{!selectedMergeType}" id="MergeType">
+                        <apex:selectOptions value="{!MergeTypeOptions}"/>
+                        <apex:actionSupport event="onchange" action="{!CheckForTemplateType}" rerender="BanquetCheckSearchCriteriaPanel,pageFormBlockTop,isBCPrintedSetting,isBCBatchPrinted,isDistributed,Template,isDistributed,isBCBatchPrinted,isDistributedSetting,isBCPrintedSetting,DocPdf,selectedBookingDocumentList,progressStatus"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.ftczl__outputfileformat}" for="DocPdf"/>
+                    <apex:selectList value="{!DocType}" id="DocPdf" size="1">
+                        <apex:selectOption itemValue="pdf" itemLabel="{!$Label.ftczl__pdf}"/>
+                        <apex:selectOption itemValue="doc" itemLabel="{!$Label.ftczl__doc}" rendered="{!ShowDocOutputOption}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.ftczl__mergetemplate}" for="Mode" />
+                    <apex:selectList value="{!selectedTemplateId}" multiselect="false" size="1" id="Template">
+                        <apex:selectOptions value="{!templateOptions}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem rendered="{!IsLanguagesVisible}">
+                    <apex:outputLabel for="MergeLanguage">{!$Label.ftczl__mergelanguage}</apex:outputLabel>
+                    <apex:selectList id="MergeLanguage" size="1" value="{!SelectedLanguage}">
+                        <apex:selectOption itemValue="" itemLabel="{!$Label.ftczl__mergedefaultlanguagelabel}" />
+                        <apex:selectOptions value="{!Languages}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem rendered="{!selectedMergeType != 'Banquet Check'}">
+                    <apex:outputLabel value="{!$Label.ftczl__merge_markbeodistributed}" for="isDistributedSetting" />
+                    <apex:inputCheckbox disabled="{!selectedMergeType != 'BEO'}" value="{!isDistributed}" id="isDistributedSetting"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!selectedMergeType != 'BEO'}">
+                    <apex:outputLabel value="{!$Label.ftczl__merge_markbanquetcheckbatchprinted}" for="isBCPrintedSetting" />
+                    <apex:inputCheckbox disabled="{!selectedMergeType != 'Banquet Check'}" value="{!isBCBatchPrinted}" id="isBCPrintedSetting"/>
+                </apex:pageBlockSectionItem> 
+                
+                <apex:pageBlockSectionItem rendered="{!IsLanguagesVisible}">
+                    <apex:outputLabel for="MergeSecondaryLanguage">{!$Label.ftczl__mergesecondarylanguage}</apex:outputLabel>
+                    <apex:selectList id="MergeSecondaryLanguage" size="1" value="{!SelectedSecondaryLanguage}">
+                        <apex:selectOption itemValue="" itemLabel="{!$Label.ftczl__mergenonelanguagelabel}" />
+                        <apex:selectOptions value="{!Languages}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem> 
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem rendered="{!IsLocalesVisible}">
+					<apex:outputLabel for="MergeLocale" value="Locale" />
+					<apex:selectList id="MergeLocale" size="1" value="{!SelectedLocale}">
+			        	<apex:selectOption itemValue="{!UserLocale}" itemLabel="{!$Label.ftczl__mergedefaultlanguagelabel}" />
+			            <apex:selectOptions value="{!Locales}" />
+			        </apex:selectList>
+	            </apex:pageBlockSectionItem>	
+
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+
+        <apex:outputPanel id="BanquetCheckSearchCriteriaPanel">
+            <apex:pageBlock title="{!$Label.ftczl__entersearchcriteria}" id="pageFormBlockMiddle">
+                <apex:pageBlockButtons >
+                     <apex:commandButton action="{!getDataForSearch}" value="{!$Label.ftczl__search}" id="Search" />
+                </apex:pageBlockButtons>
+
+                <apex:pageBlockSection columns="2" id="searchCriteriaPbs">
+
+                    <apex:pageBlockSectionItem rendered="{!!fromObject}">
+                        <apex:outputLabel value="{!$Label.ftczl__account}" for="Account" />
+                        <apex:inputField value="{!criteria.viewEvent.snapshot.Account__c}" id="Account" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.ftczl__property}" for="Property"/>
+                        <apex:selectList size="1" value="{!criteria.property}" id="Property">
+                            <apex:selectOptions value="{!PropertyOptions}"/>
+                            <apex:actionSupport event="onchange" action="{!refreshTemplatesAndDates}" rerender="Template, FunctionRoom,EventClassification,EventStartDate,EventEndDate,Template" status="status"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!fromObject}">
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!fromObject}">
+                        <apex:outputLabel value="{!$Label.ftczl__bkg_postas}" for="PostAs" />
+                        <apex:inputText value="{!criteria.postAs}" id="PostAs" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!fromObject}" id="thePageBlockSectionBookingStatus">
+                        <apex:outputLabel value="{!$Label.ftczl__bkg_status}" for="Booking Status" />
+                        <apex:selectList value="{!criteria.selectedStatuses}" multiselect="true" size="2" id="Status" >
+                            <apex:selectOptions value="{!StatusOptions}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!fromObject}">
+                        <apex:outputLabel value="{!$Label.ftczl__eventstartdate}" for="EventStartDate" />
+                        <apex:inputField value="{!criteria.viewEvent.snapshot.ArrivalDate__c}" id="EventStartDate" required="false"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!fromObject}">
+                        <apex:outputLabel value="{!$Label.ftczl__eventenddate}" for="EventEndDate" />
+                        <apex:inputField value="{!criteria.viewEvent.snapshot.DepartureDate__c}" id="EventEndDate" required="false" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!fromObject}">
+                        <apex:outputLabel value="{!$Label.ftczl__beonumberstart}" for="BeoNumberFrom" />
+                        <apex:inputText value="{!criteria.beoNumberFrom}" id="BeoNumberFrom" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!fromObject}">
+                        <apex:outputLabel value="{!$Label.ftczl__beonumberend}" for="BeoNumberTo" />
+                        <apex:inputText value="{!criteria.beoNumberTo}" id="BeoNumberTo" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!fromObject}">
+                        <apex:outputLabel value="{!$Label.ftczl__eventclassification}" for="EventClassification" />
+                        <apex:selectList value="{!criteria.selectedEventClassifications}" multiselect="true" size="3" id="EventClassification">
+                            <apex:selectOptions value="{!EventClassificationOptions}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!fromObject}">
+                        <apex:outputLabel value="{!$Label.ftczl__functionroom}" for="FunctionRoom" />
+                        <apex:selectList value="{!criteria.selectedFunctionRooms}" multiselect="true" size="3" id="FunctionRoom">
+                            <apex:selectOptions value="{!FunctionRoomOptions}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!selectedMergeType != 'Banquet Check'}">
+                        <apex:outputLabel value="{!$Label.ftczl__merge_distributedoptions}" for="isDistributed" />
+                        <apex:selectList value="{!criteria.selectedDistributedOption}" size="1" id="isDistributed">
+                            <apex:selectOptions value="{!DistributedOptions}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem rendered="{!selectedMergeType != 'BEO'}">
+                        <apex:outputLabel value="{!$Label.ftczl__merge_banquetcheckbatchprintedoptions}" for="isBCBatchPrinted" />
+                        <apex:selectList value="{!criteria.selectedBCBatchPrintedOption}" size="1" id="isBCBatchPrinted">
+                            <apex:selectOptions value="{!BCBatchPrintedOptions}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                    
+                     <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.ftczl__donebeoonly}" for="isDone" />
+                        <apex:inputCheckbox value="{!criteria.isDone}" selected="true" id="isDone" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem />
+
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.ftczl__beos_using_selected_template_only}" for="isUsingTemplate" />
+                        <apex:inputCheckbox selected="false" value="{!criteria.isUsingTemplate}" id="isUsingTemplate"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem />
+
+                    <apex:pageBlockSectionItem id="IsRevisedSection" >
+                        <apex:outputLabel value="{!$Label.ftczl__batchmerge_revisedonly}" for="IsRevised" />
+                        <apex:inputCheckbox selected="false" value="{!criteria.isRevised}" id="isRevised"
+                                            onclick="document.getElementById('thePage:typeform:pageFormBlockMiddle:searchCriteriaPbs:RevisionStartTimeSection:RevisionStartTime').disabled = !this.checked;
+                                             document.getElementById('thePage:typeform:pageFormBlockMiddle:searchCriteriaPbs:RevisionEndTimeSection:RevisionEndTime').disabled = !this.checked;" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem />
+
+                    <apex:pageBlockSectionItem id="RevisionStartTimeSection">
+                        <apex:outputLabel value="{!$Label.ftczl__batchmerge_reviseddatestart}" for="RevisionStartTime" />
+                        <apex:inputField value="{!criteria.viewEvent.snapshot.SnapshotDate__c}" id="RevisionStartTime" required="false" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem id="RevisionEndTimeSection">
+                        <apex:outputLabel value="{!$Label.ftczl__batchmerge_reviseddateend}" for="RevisionEndTime" />
+                        <apex:inputField value="{!criteria.viewEvent.snapshot2.SnapshotDate__c}" id="RevisionEndTime" required="false" />
+                    </apex:pageBlockSectionItem>
+
+                </apex:pageBlockSection>
+
+                <apex:outputText id="genScript">
+                    <script>
+                        document.getElementById('thePage:typeform:pageFormBlockMiddle:searchCriteriaPbs:RevisionStartTimeSection:RevisionStartTime').disabled = !document.getElementById('thePage:typeform:pageFormBlockMiddle:searchCriteriaPbs:IsRevisedSection:isRevised').checked;
+                        document.getElementById('thePage:typeform:pageFormBlockMiddle:searchCriteriaPbs:RevisionEndTimeSection:RevisionEndTime').disabled = !document.getElementById('thePage:typeform:pageFormBlockMiddle:searchCriteriaPbs:IsRevisedSection:isRevised').checked;
+                    </script>
+                </apex:outputText>
+
+            </apex:pageBlock>
+
+            <apex:outputPanel id="Groups" layout="none">
+                <apex:pageBlock title="{!$Label.ftczl__selectrecordstomerge}" id="genDocPageBlock">
+                    <apex:pageBlockButtons >
+                        <apex:commandButton disabled="{!isGenerateButtonDisabled}"  action="{!getSelectedBookingDocumentIds}" value="{!$Label.ftczl__mergegeneratebutton}" id="generate" rerender="selectedBookingDocumentList" oncomplete="startMerge();" />
+                        <apex:actionFunction action="{!generateDoc}" name="generateDoc" />
+                        <apex:commandButton action="{!cancel}" immediate="true" rendered="{!fromObject}" value="{!$Label.ftczl__closebutton}" id="CancelBtn"/>
+                    </apex:pageBlockButtons>
+
+                    <div align="center" style="display:{!if (!displayNavButtons ,'none','block' )}">
+                        <font size="1pt">Page&nbsp;<apex:outputLabel value="{!PageNumber}"/>&nbsp; of &nbsp;<apex:outputLabel value="{!totalPageNumber}"/>&nbsp;&nbsp;&nbsp;&nbsp;</font>
+
+                        <apex:outputLabel rendered="{!!hasPrevious}" styleClass="pagingButton" style="color:gray" value="<<"/>
+                        <apex:commandLink rendered="{!hasPrevious}" styleClass="pagingButton" action="{!firstPage}" status="waitStatus" rerender="genDocPageBlock" value="<<"/>
+                        &nbsp;&nbsp;
+                        <apex:outputLabel rendered="{!!hasPrevious}" styleClass="pagingButton" style="color:gray" value="< {!$Label.ftczl__previous}"/>
+                        <apex:commandLink rendered="{!hasPrevious}" styleClass="pagingButton" action="{!previous}" status="waitStatus" rerender="genDocPageBlock" value="< {!$Label.ftczl__previous}"/>
+                        &nbsp;&nbsp;
+                        <apex:outputLabel rendered="{!!hasNext}" styleClass="pagingButton" style="color:gray" value="{!$Label.ftczl__next} >"/>
+                        <apex:commandLink rendered="{!hasNext}" styleClass="pagingButton" action="{!next}" status="waitStatus" rerender="genDocPageBlock" value="{!$Label.ftczl__next} >"/>
+                        &nbsp;&nbsp;
+                        <apex:outputLabel rendered="{!!hasNext}" styleClass="pagingButton" style="color:gray" value=">>"/>
+                        <apex:commandLink rendered="{!hasNext}" styleClass="pagingButton" action="{!lastPage}" status="waitStatus" rerender="genDocPageBlock" value=">>"/>
+                    </div>
+                    <br/><br/>
+
+                    <apex:pageBlockTable value="{!beoItems}" var="beoRow" id="mergeTable">
+                        <apex:column width="30px">
+                            <apex:inputCheckbox value="{!beoRow.checked}" id="selectLine"/>
+                            <apex:outputText value="{!beoRow.beo.docId}" id="docId" style="display:none;"/>
+                            <apex:facet name="header">
+                                <apex:inputCheckbox selected="true" onclick="selectAll(this)" id="groupsAll"/>
+                            </apex:facet>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.ftczl__mergebeonum}" ><apex:outputText value="{!beoRow.beo.beoNumber}" /></apex:column>
+                        <apex:column headerValue="{!$Label.ftczl__firsteventdate}" ><apex:outputText value="{!beoRow.beo.firstEventDateInString}" /></apex:column>
+                        <apex:column headerValue="{!$Label.ftczl__firstevent}" ><apex:outputText value="{!beoRow.beo.firstEventName}" /></apex:column>
+                        <apex:column headerValue="{!$Label.ftczl__bkg_postas}" ><apex:outputText value="{!beoRow.beo.bookingPostAs}" /></apex:column>
+                        <apex:column headerValue="{!$Label.ftczl__bkg_status}" ><apex:outputText value="{!beoRow.beo.status}" /></apex:column>
+                        <apex:column headerValue="{!$Label.ftczl__beo}" ><apex:outputText value="{!beoRow.beo.beoName}" /></apex:column>
+                        <apex:column headerValue="{!$ObjectType.BookingDocument__c.fields.LastRevisedDate__c.label}" ><apex:outputText value="{!beoRow.beo.LastRevisedDateStr}" /></apex:column>
+                    </apex:pageBlockTable>
+
+                    <br/><br/>
+                    <div align="center" style="display:{!if (!displayNavButtons ,'none','block' )}">
+                        <font size="1pt">Page&nbsp;<apex:outputLabel value="{!PageNumber}"/>&nbsp; of &nbsp;<apex:outputLabel value="{!totalPageNumber}"/>&nbsp;&nbsp;&nbsp;&nbsp;</font>
+
+                        <apex:outputLabel rendered="{!!hasPrevious}" styleClass="pagingButton" style="color:gray" value="<<"/>
+                        <apex:commandLink rendered="{!hasPrevious}" styleClass="pagingButton" action="{!firstPage}" status="waitStatus" rerender="genDocPageBlock" value="<<"/>
+                        &nbsp;&nbsp;
+                        <apex:outputLabel rendered="{!!hasPrevious}" styleClass="pagingButton" style="color:gray" value="< {!$Label.ftczl__previous}"/>
+                        <apex:commandLink rendered="{!hasPrevious}" styleClass="pagingButton" action="{!previous}" status="waitStatus" rerender="genDocPageBlock" value="< {!$Label.ftczl__previous}"/>
+                        &nbsp;&nbsp;
+                        <apex:outputLabel rendered="{!!hasNext}" styleClass="pagingButton" style="color:gray" value="{!$Label.ftczl__next} >"/>
+                        <apex:commandLink rendered="{!hasNext}" styleClass="pagingButton" action="{!next}" status="waitStatus" rerender="genDocPageBlock" value="{!$Label.ftczl__next} >"/>
+                        &nbsp;&nbsp;
+                        <apex:outputLabel rendered="{!!hasNext}" styleClass="pagingButton" style="color:gray" value=">>"/>
+                        <apex:commandLink rendered="{!hasNext}" styleClass="pagingButton" action="{!lastPage}" status="waitStatus" rerender="genDocPageBlock" value=">>"/>
+                    </div>
+
+                </apex:pageBlock>
+            </apex:outputPanel>
+
+        </apex:outputPanel>
+
+    </apex:form>
+</apex:page>
